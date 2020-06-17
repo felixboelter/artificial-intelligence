@@ -11,6 +11,7 @@ import textwrap
 from collections import namedtuple
 from multiprocessing.pool import ThreadPool as Pool
 
+import my_custom_player
 from isolation import Isolation, Agent, play
 from sample_players import RandomPlayer, GreedyPlayer, MinimaxPlayer
 from my_custom_player import CustomPlayer
