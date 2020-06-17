@@ -20,22 +20,35 @@ class ActionLayer(BaseActionLayer):
         layers.ActionNode
         """
         # TODO: implement this function
-        raise NotImplementedError
+        for effectA in actionA.effects:
+            if ~effectA in actionB.effects:
+                return True
+        for effectB in actionB.effects:
+            if ~effectB in actionB.effects:
+                return True
+
+
 
 
     def _interference(self, actionA, actionB):
-        """ Return True if the effects of either action negate the preconditions of the other 
+        """ Return True if the effects of either action negate the preconditions of the other
 
         Hints:
             (1) `~Literal` can be used to logically negate a literal
             (2) `self.parents` contains a map from actions to preconditions
-        
+
         See Also
         --------
         layers.ActionNode
         """
         # TODO: implement this function
-        raise NotImplementedError
+        for preconditionA in actionA.effects:
+            if ~preconditionA in actionB.preconditions:
+                return True
+        for preconditionB in actionB.effects:
+            if ~preconditionB in actionA.preconditions:
+                return True
+
 
     def _competing_needs(self, actionA, actionB):
         """ Return True if any preconditions of the two actions are pairwise mutex in the parent layer
@@ -43,16 +56,14 @@ class ActionLayer(BaseActionLayer):
         Hints:
             (1) `self.parent_layer` contains a reference to the previous literal layer
             (2) `self.parents` contains a map from actions to preconditions
-        
+
         See Also
         --------
         layers.ActionNode
         layers.BaseLayer.parent_layer
         """
         # TODO: implement this function
-        raise NotImplementedError
-
-
+        return any(self.parent_layer.is_mutex(preconA, preconB) for preconA in actionA.preconditions for preconB in actionB.preconditions)
 class LiteralLayer(BaseLiteralLayer):
 
     def _inconsistent_support(self, literalA, literalB):
@@ -67,14 +78,14 @@ class LiteralLayer(BaseLiteralLayer):
         layers.BaseLayer.parent_layer
         """
         # TODO: implement this function
-        raise NotImplementedError
+        #raise NotImplementedError
+        return all(self.parent_layer.is_mutex(actionA, actionB) for actionA in self.parents[literalA] for actionB in self.parents[literalB])
+
 
     def _negation(self, literalA, literalB):
         """ Return True if two literals are negations of each other """
         # TODO: implement this function
-        raise NotImplementedError
-
-
+        return literalA == ~literalB
 class PlanningGraph:
     def __init__(self, problem, state, serialize=True, ignore_mutexes=False):
         """
@@ -97,11 +108,10 @@ class PlanningGraph:
         self._is_leveled = False
         self._ignore_mutexes = ignore_mutexes
         self.goal = set(problem.goal)
-
         # make no-op actions that persist every literal to the next layer
         no_ops = [make_node(n, no_op=True) for n in chain(*(makeNoOp(s) for s in problem.state_map))]
         self._actionNodes = no_ops + [make_node(a) for a in problem.actions_list]
-        
+
         # initialize the planning graph by finding the literals that are in the
         # first layer and finding the actions they they should be connected to
         literals = [s if f else ~s for f, s in zip(state, problem.state_map)]
@@ -109,6 +119,8 @@ class PlanningGraph:
         layer.update_mutexes()
         self.literal_layers = [layer]
         self.action_layers = []
+
+
 
     def h_levelsum(self):
         """ Calculate the level sum heuristic for the planning graph
@@ -118,7 +130,7 @@ class PlanningGraph:
         level at which the literal first appears in the planning graph. Note
         that the level cost is **NOT** the minimum number of actions to
         achieve a single goal literal.
-        
+
         For example, if Goal_1 first appears in level 0 of the graph (i.e.,
         it is satisfied at the root of the planning graph) and Goal_2 first
         appears in level 3, then the levelsum is 0 + 3 = 3.
@@ -136,7 +148,24 @@ class PlanningGraph:
         Russell-Norvig 10.3.1 (3rd Edition)
         """
         # TODO: implement this function
-        raise NotImplementedError
+
+        level = 0
+        sol = 0
+        goals=[]
+        while not self._is_leveled:
+            allGoalsMet = True
+            for goal in self.goal:
+                if goal not in self.literal_layers[-1]:
+                    allGoalsMet = False
+                if goal in self.literal_layers[-1] and goal not in goals:
+                    sol += level
+                    goals.append(goal)
+            if allGoalsMet:
+                return sol
+            else:
+                self._extend()
+            level += 1
+
 
     def h_maxlevel(self):
         """ Calculate the max level heuristic for the planning graph
@@ -166,7 +195,19 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic with A*
         """
         # TODO: implement maxlevel heuristic
-        raise NotImplementedError
+
+        level = 0
+        while not self._is_leveled:
+            allGoalsMet = True
+            for goal in self.goal:
+                if goal not in self.literal_layers[-1]:
+                    allGoalsMet = False
+            if allGoalsMet:
+                return level
+            else:
+                self._extend()
+            level += 1
+
 
     def h_setlevel(self):
         """ Calculate the set level heuristic for the planning graph
@@ -191,7 +232,39 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic on complex problems
         """
         # TODO: implement setlevel heuristic
-        raise NotImplementedError
+
+
+        """level = 0
+        while not self._is_leveled:
+            allGoalsMet = True
+            for goal in self.goal:
+                if goal not in self.literal_layers[-1]:
+                    allGoalsMet = False
+            goalsAreMutex = False
+            for gA in self.goal:
+                for gB in self.goal:
+                    if self.literal_layers[-1].is_mutex(gA,gB):
+                        goalsAreMutex=True
+            if allGoalsMet and not goalsAreMutex:
+                return level
+            else:
+                self._extend()
+            level += 1"""
+
+        while len(self.literal_layers) < 1e6:
+            last_layer = self.literal_layers[-1]
+            if self.goal.issubset(last_layer):
+                no_pair_mutex = True
+                for goal1, goal2 in combinations(self.goal, 2):
+                    if last_layer.is_mutex(goal1, goal2):
+                        no_pair_mutex = False
+                        break
+                if no_pair_mutex:
+                    return len(self.literal_layers) - 1
+            if self._is_leveled:
+                break
+            self._extend()
+        return len(self.literal_layers) - 1
 
     ##############################################################################
     #                     DO NOT MODIFY CODE BELOW THIS LINE                     #
@@ -224,7 +297,7 @@ class PlanningGraph:
         negative literals in the leaf nodes of the parent literal level.
 
         The new literal layer contains all literals that could result from taking each possible
-        action in the NEW action layer. 
+        action in the NEW action layer.
         """
         if self._is_leveled: return
 

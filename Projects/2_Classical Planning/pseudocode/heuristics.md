@@ -89,6 +89,7 @@ The level cost is a helper function used by MaxLevel and LevelSum. The level cos
 These heuristics can be made _much_ more efficient by incrementally growing the graph rather than building until it levels off. A straightforward implementation of the alternate MaxLevel pseudocode shown below is at least 2x faster than the simple version above.
 
 ---
+
 **function** MaxLevel(_graph_) **returns** a value  
 &emsp;**inputs:** _graph_, an initialized (unleveled) planning graph  
   
@@ -102,3 +103,4 @@ These heuristics can be made _much_ more efficient by incrementally growing the 
 &emsp;&emsp;_i_ <- _i_ + 1  
 
 ---
+
